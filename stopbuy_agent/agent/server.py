@@ -25,7 +25,7 @@ from websockets.exceptions import ConnectionClosed
 # ── 로거 설정 ─────────────────────────────────────────────────────────────────
 # 포맷: 시각 [레벨] 파일명:행번호 로거명 - 메시지
 _LOG_FORMAT = (
-    "%(asctime)s [%(levelname)-8s] %(filename)s:%(lineno)d %(name)s - %(message)s"
+    "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s"
 )
 _LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
 
@@ -108,12 +108,15 @@ async def send_message(websocket: ServerConnection, data: dict):
     """JSON 메시지 전송"""
     try:
         payload = json.dumps(data, ensure_ascii=False)
-        logger.debug(
-            "▶ 송신 | type=%s | session=%s | payload=%s",
-            data.get("type"),
-            data.get("session_id", "-"),
-            _truncate(payload),
-        )
+        # logger.debug(
+        #     "▶ 송신 | type=%s | session=%s | payload=%s",
+        #     data.get("type"),
+        #     data.get("session_id", "-"),
+        #     _truncate(payload),
+        # )
+        
+        logger.info(f"송신 메시지: {json.dumps(data, indent=4,ensure_ascii=False)}")
+
         await websocket.send(payload)
     except Exception as e:
         logger.error("메시지 전송 오류: %s", e)
