@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# StopBuy — 개발 전용 Docker Compose 오버라이드
+#
+# docker-compose.yml을 기반으로 개발 편의 기능만 덮어씁니다.
+#
+# 실행 방법:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   (단축) docker compose -f docker-compose.dev.yml up --build
+#
+# 개발 모드 특징:
+#   backend:
+#     - 소스 코드를 호스트에서 컨테이너로 실시간 마운트 (볼륨)
+#     - uvicorn --reload 로 파일 변경 즉시 자동 재시작 (watchfiles 사용)
+#     - LOG_LEVEL=DEBUG 로 상세 로그 출력
+#   agent:
+#     - 소스 코드를 호스트에서 컨테이너로 실시간 마운트
+#     - watchmedo 또는 직접 재시작으로 변경 반영
+#     - LOG_LEVEL=DEBUG
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ─── AI Agent (개발 모드) ──────────────────────────────────────────────────
+  agent:
+    volumes:
+      # 호스트 소스 → 컨테이너 실시간 마운트 (파일 변경 즉시 반영)
+      - ../stopbuy_agent:/app
+    environment:
+      LOG_LEVEL: "DEBUG"
+    # watchmedo로 파일 변경 감지 후 자동 재시작
+    # (watchdog 패키지 필요 — agent/requirements.txt에 추가 필요)
+    command: >
+      sh -c "pip install watchdog[watchmedo] -q &&
+             watchmedo auto-restart
+               --directory=/app
+               --pattern='*.py'
+               --recursive
+               -- python -m agent.server"
+
+  # ─── FastAPI 백엔드 (개발 모드) ───────────────────────────────────────────
+  backend:
+    volumes:
+      # 호스트 소스 → 컨테이너 실시간 마운트 (파일 변경 즉시 반영)
+      # Dockerfile에서 COPY . . 로 복사한 내용을 덮어씀
+      - .:/app
+    environment:
+      LOG_LEVEL: "DEBUG"
+    # uvicorn --reload: watchfiles가 .py 변경을 감지하면 자동 재시작
+    command: >
+      uvicorn app.main:app
+        --host 0.0.0.0
+        --port 8000
+        --reload
+        --reload-dir /app/app
+        --log-level debug

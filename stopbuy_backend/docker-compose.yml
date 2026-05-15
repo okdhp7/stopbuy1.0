@@ -1,0 +1,117 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# StopBuy — 전체 서비스 통합 Docker Compose (프로덕션)
+#
+# 서비스 구성:
+#   db        → PostgreSQL 15 (데이터베이스)
+#   agent     → Python AI Agent (WebSocket 서버, 포트 8765)
+#   backend   → FastAPI 백엔드 (REST + WebSocket, 포트 8000)
+#   frontend  → React + Nginx (포트 80)
+#
+# 실행:
+#   [프로덕션]  docker compose up -d --build
+#   [개발]      docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#              또는 단축 명령: docker compose -f docker-compose.dev.yml up --build
+#
+# 접속:
+#   프론트엔드 → http://localhost
+#   백엔드 API → http://localhost:8000
+#   API 문서   → http://localhost:8000/docs
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ─── PostgreSQL 데이터베이스 ───────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: stopbuy_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stopbuy}
+      POSTGRES_USER: ${POSTGRES_USER:-stopbuy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stopbuy_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stopbuy} -d ${POSTGRES_DB:-stopbuy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ─── AI Agent (WebSocket 서버) ─────────────────────────────────────────────
+  agent:
+    build:
+      context: ../stopbuy_agent
+      dockerfile: Dockerfile
+    container_name: stopbuy_agent
+    restart: unless-stopped
+    environment:
+      AGENT_HOST: "0.0.0.0"
+      AGENT_PORT: "8765"
+      USE_LLM: "${USE_LLM:-false}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      LLM_MODEL_NAME: "${LLM_MODEL_NAME:-gpt-4o-mini}"
+    ports:
+      - "8765:8765"
+    healthcheck:
+      # WebSocket 핸드셰이크로 확인 — 단순 TCP connect()는 Agent 로그에
+      # 'EOFError: stream ends after 0 bytes' 오류를 발생시키므로 사용하지 않음
+      test: ["CMD", "python3", "-c",
+        "import asyncio; from websockets.asyncio.client import connect; asyncio.run(connect('ws://localhost:8765').__aenter__())"]
+      interval: 10s
+      timeout: 8s
+      retries: 5
+      start_period: 20s
+
+  # ─── FastAPI 백엔드 ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stopbuy_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-stopbuy}:${POSTGRES_PASSWORD:-stopbuy_secret}@db:5432/${POSTGRES_DB:-stopbuy}"
+      AGENT_WS_URL: "ws://agent:8765"
+      BACKEND_HOST: "0.0.0.0"
+      BACKEND_PORT: "8000"
+      CORS_ORIGINS: '["http://localhost","http://localhost:80","http://localhost:8000","http://127.0.0.1","http://127.0.0.1:80","http://frontend","http://frontend:80"]'
+      SECRET_KEY: "${SECRET_KEY:-stopbuy-dev-secret-key-change-in-production}"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      agent:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ─── React 프론트엔드 (Nginx) ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../stopbuy_app
+      dockerfile: Dockerfile
+    container_name: stopbuy_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health.txt"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    name: stopbuy_postgres_data
