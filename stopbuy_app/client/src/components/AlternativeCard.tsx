@@ -4,6 +4,7 @@
  */
 import { Star, TrendingDown, ShieldCheck, Tag } from "lucide-react";
 import type { AlternativeProduct } from "@/hooks/useStopBuyWS";
+import { getAlternativeProductImage, PRODUCT_PLACEHOLDER_IMAGE } from "@/lib/productImages";
 
 interface AlternativeCardProps {
   product: AlternativeProduct;
@@ -12,10 +13,9 @@ interface AlternativeCardProps {
   style?: React.CSSProperties;
 }
 
-const PLACEHOLDER_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663632451254/8SbY3RBNCHrKBA7jPh2CJe/stopbuy_product_placeholder-ZSAsS7GCJQb9MZnQ4RoFR7.webp";
-
 export function AlternativeCard({ product, rank, targetRegretScore, style }: AlternativeCardProps) {
   const regretScore = product.regret_score ?? 0;
+  const productImageUrl = getAlternativeProductImage(product);
   const improvement = targetRegretScore != null
     ? Math.round((targetRegretScore - regretScore) * 100)
     : null;
@@ -64,11 +64,11 @@ export function AlternativeCard({ product, rank, targetRegretScore, style }: Alt
           style={{ background: "var(--sb-input-bg)" }}
         >
           <img
-            src={product.image_url || PLACEHOLDER_IMG}
+            src={productImageUrl}
             alt={product.name || "상품 이미지"}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = PLACEHOLDER_IMG;
+              (e.target as HTMLImageElement).src = PRODUCT_PLACEHOLDER_IMAGE;
             }}
           />
         </div>
