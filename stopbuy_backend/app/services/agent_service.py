@@ -194,7 +194,7 @@ class AgentConnectionManager:
         msg_type = message.get("type")
 
         logger.info(f"Agent 메시지 수신: type={msg_type}, session={session_id}")
-        logger.info(f"메시지 내용: {json.dumps(message.get('data'), ensure_ascii=False)[:500]}")
+        logger.info(f"메시지 내용: {json.dumps(message.get('data'), indent=4,ensure_ascii=False)}")
 
         if session_id and session_id in self._callbacks:
             callback = self._callbacks[session_id]
