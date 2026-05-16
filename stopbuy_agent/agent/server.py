@@ -43,7 +43,7 @@ for _ws_logger_name in ("websockets.server", "websockets.client", "websockets"):
         _ws_logger.setLevel(logging.WARNING)  # websockets 내부 노이즈 억제
 
 # ── 환경 설정 ─────────────────────────────────────────────────────────────────
-AGENT_HOST = os.getenv("AGENT_HOST", "0.0.0.0")
+AGENT_HOST = os.getenv("AGENT_HOST", "localhost")
 AGENT_PORT = int(os.getenv("AGENT_PORT", "8765"))
 USE_LLM = os.getenv("USE_LLM", "false").lower() == "true"
 
@@ -142,6 +142,7 @@ async def handle_analysis_request(websocket: ServerConnection, session_id: str, 
             _pretty_json(data),
         )
         await send_progress(websocket, session_id, 30, "상품 정보 추출 중...")
+        await asyncio.sleep(0.5)   # ← 임시 지연 추가
 
         # 상품 정보 추출 (URL 크롤링 또는 이미지 분석)
         product_info = None
@@ -203,6 +204,7 @@ async def handle_analysis_request(websocket: ServerConnection, session_id: str, 
         )
 
         await send_progress(websocket, session_id, 55, "후회 가능성 예측 중...")
+        await asyncio.sleep(0.5)   # ← 임시 지연 추가
 
         loop = asyncio.get_event_loop()
         pred = get_predictor()
@@ -218,6 +220,7 @@ async def handle_analysis_request(websocket: ServerConnection, session_id: str, 
         )
 
         await send_progress(websocket, session_id, 85, "대체상품 검색 완료. 결과 정리 중...")
+        await asyncio.sleep(0.5)   # ← 임시 지연 추가
 
         alt_count = len(result.get("alternatives", []))
         logger.info(
@@ -259,7 +262,7 @@ async def handle_client(websocket: ServerConnection):
     try:
         async for raw_message in websocket:
             # ── 수신 원문 로그 (DEBUG) ─────────────────────────
-            logger.debug(
+            logger.info(
                 "◀ 수신 원문 | from=%s | len=%d bytes | raw=%s",
                 client_addr,
                 len(raw_message) if isinstance(raw_message, (str, bytes)) else 0,
